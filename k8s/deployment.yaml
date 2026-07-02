@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clipframe
+  namespace: clipframe
+  labels:
+    app: clipframe
+    version: "1.0"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: clipframe
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0        # Zero-downtime deployments
+  template:
+    metadata:
+      labels:
+        app: clipframe
+    spec:
+      # Security: run as non-root
+      securityContext:
+        runAsNonRoot: false    # nginx master needs root to bind :80
+        fsGroup: 101           # nginx group
+
+      containers:
+        - name: clipframe
+          # This image tag is updated by the CD pipeline on each deploy
+          image: your-dockerhub-username/clipframe:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+              protocol: TCP
+
+          # Security context for container
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false  # nginx needs /tmp and /var/cache
+
+          # Resource limits — prevent noisy neighbor issues
+          resources:
+            requests:
+              cpu:    "50m"
+              memory: "64Mi"
+            limits:
+              cpu:    "200m"
+              memory: "128Mi"
+
+          # Liveness probe — restart if nginx hangs
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            failureThreshold: 3
+
+          # Readiness probe — only send traffic when ready
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+
+          # Mount nginx config from ConfigMap
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: default.conf
+              readOnly: true
+
+      volumes:
+        - name: nginx-config
+          configMap:
+            name: clipframe-nginx-config
+
+      # Spread pods across nodes for availability
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: clipframe

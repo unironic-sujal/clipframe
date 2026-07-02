@@ -1,0 +1,33 @@
+# ──────────────────────────────────────────────────────────────
+# ClipFrame — Docker Compose (Local Development)
+# Run with: docker-compose up --build
+# App available at: http://localhost:8080
+# ──────────────────────────────────────────────────────────────
+
+version: "3.9"
+
+services:
+  clipframe:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: clipframe
+    ports:
+      - "8080:80"         # Access at http://localhost:8080
+    restart: unless-stopped
+    read_only: true       # Read-only filesystem for security
+    tmpfs:
+      - /tmp              # Nginx needs /tmp for temp files
+      - /var/cache/nginx
+      - /var/run
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

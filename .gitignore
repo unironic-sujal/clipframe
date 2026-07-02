@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+
+# Terraform state (never commit state files — they may contain secrets)
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+terraform/*.tfvars
+
+# Ansible vault / sensitive files
+ansible/*.vault
+ansible/vault_pass.txt
+
+# Docker
+.dockerignore
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Secrets — NEVER commit these
+*.pem
+*.key
+*.crt
+kubeconfig
+.env
+.env.*
+
+# Build artifacts
+dist/
+build/

@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clipframe-nginx-config
+  namespace: clipframe
+data:
+  default.conf: |
+    server {
+        listen       80;
+        server_name  _;
+        root         /usr/share/nginx/html;
+        index        index.html;
+        charset      utf-8;
+        server_tokens off;
+
+        add_header X-Content-Type-Options  "nosniff"       always;
+        add_header X-Frame-Options         "DENY"          always;
+        add_header X-XSS-Protection        "1; mode=block" always;
+        add_header Referrer-Policy         "no-referrer"   always;
+        add_header Permissions-Policy      "camera=(), microphone=(), geolocation=()" always;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'none'; object-src 'none'; frame-ancestors 'none';" always;
+
+        gzip on;
+        gzip_types text/html text/css text/javascript application/javascript application/json;
+
+        location = /health {
+            access_log off;
+            return 200 '{"status":"ok"}';
+            add_header Content-Type application/json always;
+        }
+
+        location / {
+            try_files $uri $uri/ /index.html;
+        }
+
+        location ~ /\. {
+            deny all;
+            return 404;
+        }
+    }

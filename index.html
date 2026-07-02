@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ClipFrame — Extract Lossless Frames from Any Video</title>
+  <meta name="description"
+    content="Extract any frame from any video as a full-quality, lossless PNG — no quality loss, no screenshots, no black borders. Free, private, works in your browser." />
+  <meta name="theme-color" content="#7c3aed" />
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+
+  <!-- Security: Content Security Policy -->
+  <!--
+    TODO(security): When deploying via a proper web server (Nginx/Vercel),
+    move CSP to HTTP response headers instead of meta tag for stronger enforcement.
+    The script-src 'self' allows only app.js loaded from the same origin.
+    blob: in media-src is required for createObjectURL (local video files).
+  -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self';
+                 script-src 'self';
+                 style-src 'self' https://fonts.googleapis.com;
+                 font-src https://fonts.gstatic.com;
+                 img-src 'self' blob: data:;
+                 media-src 'self' blob:;
+                 connect-src 'none';
+                 object-src 'none';
+                 frame-ancestors 'none';" />
+
+  <!-- Fonts (SRI not applicable to Google Fonts CSS — it's dynamic; served over HTTPS) -->
+  <!-- TODO(security): Consider self-hosting fonts to eliminate third-party dependency -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet" />
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+
+  <!-- Hidden canvas used for lossless frame extraction — never shown to user -->
+  <canvas id="capture-canvas" aria-hidden="true"></canvas>
+
+  <div class="app-wrap">
+
+    <!-- ══════════ HEADER ══════════ -->
+    <header class="header" role="banner">
+      <div class="logo" role="img" aria-label="ClipFrame logo">
+        ClipFrame<span class="logo-dot"></span>
+      </div>
+
+      <div class="header-right">
+        <!-- Theme toggle -->
+        <button id="theme-toggle" class="theme-toggle ctrl-btn" aria-label="Toggle light/dark mode">
+          <!-- Sun icon (shown in light mode) -->
+          <svg class="icon-sun" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+          <!-- Moon icon (shown in dark mode) -->
+          <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+        </button>
+
+        <!-- Keyboard shortcuts hint (desktop only) -->
+        <div class="shortcuts" aria-label="Keyboard shortcuts" role="complementary">
+          <div class="shortcut"><kbd>Space</kbd> Play/Pause</div>
+          <div class="shortcut"><kbd>←</kbd><kbd>→</kbd> Step frame</div>
+          <div class="shortcut"><kbd>Shift</kbd>+<kbd>←</kbd><kbd>→</kbd> ×10</div>
+          <div class="shortcut"><kbd>S</kbd> Save</div>
+        </div>
+
+        <!-- Framerate selector (auto-detected, manually adjustable) -->
+        <div class="fps-wrap" title="Set this to match your video's actual framerate. Higher value = smaller ← → steps = finer frame-by-frame control. Lower value = bigger jumps per step.">
+          <div class="fps-label-group">
+            <label class="fps-label" for="fps-select">Framerate</label>
+            <span class="fps-sub">↑ higher = finer steps</span>
+          </div>
+          <div class="fps-control-row">
+            <select class="fps-select" id="fps-select" aria-label="Video framerate in frames per second">
+              <option value="24">24</option>
+              <option value="25">25</option>
+              <option value="30" selected>30</option>
+              <option value="48">48</option>
+              <option value="50">50</option>
+              <option value="60">60</option>
+              <option value="120">120</option>
+            </select>
+            <span class="fps-unit">fps</span>
+            <span class="fps-auto-badge hidden" id="fps-auto-badge" title="Detected from your video">auto</span>
+          </div>
+        </div>
+
+        <!-- Change video -->
+        <button class="change-btn" id="change-video-btn" aria-label="Load a different video">
+          <span><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg></span>
+          <span>Open video</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- ══════════ MAIN LAYOUT ══════════ -->
+    <main class="main-layout" role="main">
+
+      <!-- ── Left column: video + controls ── -->
+      <div class="video-col">
+
+        <!-- Drop zone (shown before video is loaded) -->
+        <section id="drop-zone" class="drop-zone" role="button" tabindex="0"
+          aria-label="Drop a video file here or click to browse" aria-describedby="drop-sub">
+          <div class="drop-icon-wrap" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 3v18"/><path d="M17 3v18"/><path d="M3 7.5h4"/><path d="M3 12h18"/><path d="M3 16.5h4"/><path d="M17 7.5h4"/><path d="M17 16.5h4"/></svg></div>
+          <div class="drop-title">Drop a video here</div>
+          <p class="drop-sub" id="drop-sub">or click to browse your files</p>
+          <div class="drop-formats" aria-label="Supported formats">
+            <span class="format-tag">MP4 · H.264</span>
+            <span class="format-tag">WebM · VP8/VP9</span>
+            <span class="format-tag">MKV · H.264</span>
+            <span class="format-tag">MOV · H.264</span>
+            <span class="format-tag">AVI · H.264</span>
+            <span class="format-tag">4K · 8K · 60fps</span>
+          </div>
+          <p class="drop-unsupported">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle; margin-right:4px; margin-top:-2px;"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> ProRes, HEVC &amp; RAW codecs aren't supported by browsers — convert to H.264 MP4 first
+          </p>
+        </section>
+
+        <!-- Hidden file input -->
+        <input type="file" id="file-input" accept="video/*" aria-hidden="true" tabindex="-1" style="display:none" />
+
+        <!-- Video player (hidden until video loads) -->
+        <section id="player-section" class="player-wrap hidden" aria-label="Video player">
+          <video id="video-player" playsinline preload="metadata" aria-label="Loaded video">
+          </video>
+        </section>
+
+        <!-- Timeline controls (hidden until video loads) -->
+        <section id="timeline-section" class="panel timeline-panel hidden" aria-label="Video timeline">
+          <div class="time-row">
+            <div class="timestamp-display" aria-live="polite" aria-atomic="true">
+              <span class="time-current" id="current-time" aria-label="Current time">00:00.000</span>
+              <span class="time-sep" aria-hidden="true">/</span>
+              <span class="time-total" id="total-time" aria-label="Total duration">00:00.000</span>
+            </div>
+            <div class="frame-badge" id="frame-number" aria-label="Current frame number" aria-live="polite">#0</div>
+          </div>
+
+          <!-- Scrubber -->
+          <div class="scrubber-track">
+            <input type="range" class="scrubber" id="scrubber" min="0" max="100" step="0.001" value="0"
+              aria-label="Video position scrubber" style="--fill: 0%" />
+          </div>
+
+          <!-- Playback controls -->
+          <div class="controls" role="group" aria-label="Playback controls">
+            <button class="ctrl-btn" id="step-back-10" aria-label="Step back 10 frames" title="Step back 10 frames">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m11 17-5-5 5-5"/><path d="m18 17-5-5 5-5"/></svg>
+              <span class="step-label">−10 frames</span>
+            </button>
+            <button class="ctrl-btn" id="step-back-1" aria-label="Step back 1 frame" title="Step back 1 frame">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+              <span class="step-label">−1 frame</span>
+            </button>
+            <button class="ctrl-btn play-btn" id="play-btn" aria-label="Play or pause video"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>
+            <button class="ctrl-btn" id="step-fwd-1" aria-label="Step forward 1 frame" title="Step forward 1 frame">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              <span class="step-label">+1 frame</span>
+            </button>
+            <button class="ctrl-btn" id="step-fwd-10" aria-label="Step forward 10 frames"
+              title="Step forward 10 frames">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 17 5-5-5-5"/><path d="m13 17 5-5-5-5"/></svg>
+              <span class="step-label">+10 frames</span>
+            </button>
+            <select id="speed-select" class="speed-select" aria-label="Playback speed" title="Playback speed">
+              <option value="0.25">0.25x</option>
+              <option value="0.5">0.5x</option>
+              <option value="1" selected>1x</option>
+              <option value="1.5">1.5x</option>
+              <option value="2">2x</option>
+            </select>
+          </div>
+        </section>
+
+
+      </div>
+
+      <!-- ── Sidebar ── -->
+      <aside class="sidebar" role="complementary" aria-label="Video information and export">
+
+        <!-- Empty state (before video loads) -->
+        <div class="panel" id="empty-panel">
+          <div class="empty-panel-body">
+            <div class="empty-icon" aria-hidden="true">🎞️</div>
+            <p class="empty-text">Load a video to see<br>info and extract frames</p>
+          </div>
+        </div>
+
+        <!-- Video info panel (shown after video loads) -->
+        <div class="panel hidden" id="info-panel">
+          <div class="panel-heading">Video</div>
+          <div class="meta-row">
+            <span class="meta-label">File</span>
+            <span class="meta-value" id="info-filename"
+              style="max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">—</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-label">Quality</span>
+            <span class="res-badge">
+              <span class="res-dot"></span>
+              <span id="info-res-label">—</span>
+            </span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-label">Dimensions</span>
+            <span class="meta-value accent" id="info-dimensions">—</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-label">FPS</span>
+            <span class="meta-value" id="info-fps">—</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-label">Duration</span>
+            <span class="meta-value" id="info-duration">—</span>
+          </div>
+        </div>
+
+        <!-- Current frame info panel (shown after video loads) -->
+        <div class="panel hidden" id="frame-panel">
+          <div class="panel-heading">Current Frame</div>
+          <div class="meta-row">
+            <span class="meta-label">Timestamp</span>
+            <span class="meta-value accent" id="info-frame-time">00:00.000</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-label">Frame #</span>
+            <span class="meta-value" id="info-frame-num">0</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-label">Export</span>
+            <span class="meta-value">PNG (lossless)</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-label">Est. size</span>
+            <span class="meta-value" id="info-png-size">—</span>
+          </div>
+        </div>
+
+        <!-- Extract panel (shown after video loads) -->
+        <div class="hidden" id="extract-panel">
+          <button class="extract-btn" id="extract-btn" disabled aria-label="Save current frame as PNG">
+            <span aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg></span>
+            Save Frame as PNG
+          </button>
+          <div style="height: 8px;"></div>
+          <button class="copy-btn" id="copy-btn" disabled aria-label="Copy current frame to clipboard">
+            <span aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg></span>
+            Copy to Clipboard
+          </button>
+        </div>
+
+      </aside>
+
+    </main>
+  </div>
+
+  <!-- Toast notification -->
+  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <script src="app.js"></script>
+</body>
+
+</html>

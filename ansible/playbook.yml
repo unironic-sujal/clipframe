@@ -1,0 +1,150 @@
+---
+# ──────────────────────────────────────────────────────────────
+# ClipFrame — Ansible Playbook
+# Bootstraps any fresh machine (Ubuntu/Debian) with all the
+# tools needed to run ClipFrame locally or as a dev environment.
+#
+# Usage:
+#   ansible-playbook -i inventory.ini playbook.yml
+#   ansible-playbook -i inventory.ini playbook.yml --ask-become-pass
+# ──────────────────────────────────────────────────────────────
+
+- name: Bootstrap ClipFrame development environment
+  hosts: all
+  become: true
+
+  vars:
+    docker_version:  "26.1"
+    kubectl_version: "v1.29.0"
+    kind_version:    "v0.23.0"
+    terraform_version: "1.8.4"
+    app_user: "{{ ansible_user }}"
+
+  tasks:
+
+    # ── System prerequisites ──────────────────────────────────
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install system dependencies
+      apt:
+        name:
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+          - git
+          - wget
+          - unzip
+          - apt-transport-https
+        state: present
+
+    # ── Docker ────────────────────────────────────────────────
+    - name: Add Docker GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker repository
+      apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_lsb.codename }} stable"
+        state: present
+
+    - name: Install Docker CE
+      apt:
+        name:
+          - "docker-ce={{ docker_version }}*"
+          - docker-ce-cli
+          - containerd.io
+          - docker-compose-plugin
+        state: present
+        update_cache: yes
+
+    - name: Ensure Docker service is started and enabled
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Add app user to docker group
+      user:
+        name: "{{ app_user }}"
+        groups: docker
+        append: yes
+
+    # ── kubectl ───────────────────────────────────────────────
+    - name: Download kubectl
+      get_url:
+        url: "https://dl.k8s.io/release/{{ kubectl_version }}/bin/linux/amd64/kubectl"
+        dest: /usr/local/bin/kubectl
+        mode: "0755"
+
+    - name: Verify kubectl installation
+      command: kubectl version --client
+      register: kubectl_check
+      changed_when: false
+
+    - name: Show kubectl version
+      debug:
+        msg: "{{ kubectl_check.stdout }}"
+
+    # ── kind (Kubernetes in Docker) ───────────────────────────
+    - name: Download kind
+      get_url:
+        url: "https://kind.sigs.k8s.io/dl/{{ kind_version }}/kind-linux-amd64"
+        dest: /usr/local/bin/kind
+        mode: "0755"
+
+    - name: Verify kind installation
+      command: kind version
+      register: kind_check
+      changed_when: false
+
+    - name: Show kind version
+      debug:
+        msg: "{{ kind_check.stdout }}"
+
+    # ── Terraform ─────────────────────────────────────────────
+    - name: Download Terraform
+      get_url:
+        url: "https://releases.hashicorp.com/terraform/{{ terraform_version }}/terraform_{{ terraform_version }}_linux_amd64.zip"
+        dest: /tmp/terraform.zip
+        mode: "0644"
+
+    - name: Unzip Terraform
+      unarchive:
+        src: /tmp/terraform.zip
+        dest: /usr/local/bin/
+        remote_src: yes
+        mode: "0755"
+
+    - name: Clean up Terraform zip
+      file:
+        path: /tmp/terraform.zip
+        state: absent
+
+    - name: Verify Terraform installation
+      command: terraform version
+      register: terraform_check
+      changed_when: false
+
+    - name: Show Terraform version
+      debug:
+        msg: "{{ terraform_check.stdout_lines[0] }}"
+
+    # ── Summary ───────────────────────────────────────────────
+    - name: Print setup summary
+      debug:
+        msg: |
+          ✅ ClipFrame environment ready!
+          Docker:    installed
+          kubectl:   {{ kubectl_version }}
+          kind:      {{ kind_version }}
+          Terraform: {{ terraform_version }}
+
+          Next steps:
+            1. Log out and back in (for docker group to take effect)
+            2. cd terraform && terraform init && terraform apply
+            3. cd .. && docker-compose up --build

@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: clipframe
+  namespace: clipframe
+  labels:
+    app: clipframe
+spec:
+  type: ClusterIP
+  selector:
+    app: clipframe
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 80
