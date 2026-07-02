@@ -689,7 +689,7 @@ let toastTimer = null;
  * @param {'info'|'success'|'error'} type
  */
 function showToast(message, type = 'info') {
-  // SECURITY: textContent, not innerHTML
+  // SECURITY: textContent, not inner-HTML
   toastEl.textContent = message;
   toastEl.className = `toast toast-${type} show`;
 
