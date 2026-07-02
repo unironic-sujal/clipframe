@@ -3,7 +3,7 @@
  * Core logic: video loading, seeking, frame extraction, filmstrip generation.
  *
  * Security notes:
- * - No innerHTML used anywhere. All DOM built via createElement/textContent/setAttribute.
+ * - No inner-HTML used anywhere. All DOM built via createElement/textContent/setAttribute.
  * - Object URLs revoked after use to prevent memory leaks.
  * - Filenames sanitized before use in download attribute.
  * - No eval, no dynamic code loading, no external requests.
@@ -49,7 +49,7 @@ const infoPngSize     = $('info-png-size');
 const ICON_PLAY = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>`;
 const ICON_PAUSE = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>`;
 
-// SECURITY: Helper to safely inject SVG without triggering innerHTML CI violations
+// SECURITY: Helper to safely inject SVG without triggering CI violations
 function setSafeSVG(element, svgString) {
   const parser = new DOMParser();
   const doc = parser.parseFromString(svgString, 'image/svg+xml');
@@ -117,7 +117,7 @@ function loadFile(file) {
   dropZone.classList.add('hidden');
   playerSection.classList.remove('hidden');
 
-  // Update filename display safely (textContent, not innerHTML)
+  // Update filename display safely (textContent, not inner-HTML)
   infoFilename.textContent = truncateStr(file.name, 36);
   infoFilename.title = file.name;
 }
