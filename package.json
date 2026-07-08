@@ -1,0 +1,29 @@
+{
+  "name": "clipframe",
+  "version": "1.0.0",
+  "description": "Extract any frame from any video as a full-quality, lossless PNG — no quality loss, no screenshots, no black borders.",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/unironic-sujal/clipframe.git"
+  },
+  "keywords": [
+    "video",
+    "frame-extraction",
+    "png",
+    "clipframe",
+    "video-frames"
+  ],
+  "author": "Sujal Patel",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/unironic-sujal/clipframe/issues"
+  },
+  "homepage": "https://github.com/unironic-sujal/clipframe#readme",
+  "dependencies": {
+    "@vercel/analytics": "^2.0.1"
+  }
+}
