@@ -40,3 +40,17 @@ kubeconfig
 # Build artifacts
 dist/
 build/
+analytics.min.js
+
+# Temp/diagnostic scripts
+diag*.js
+visit.js
+check-*.js
+test-analytics*.js
+analytics.js
+
+# Test videos
+*.mp4
+
+# Kind binary
+kind.exe
