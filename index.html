@@ -13,25 +13,11 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
 
-  <!-- Security: Content Security Policy -->
-  <!--
-    TODO(security): When deploying via a proper web server (Nginx/Vercel),
-    move CSP to HTTP response headers instead of meta tag for stronger enforcement.
-    The script-src 'self' allows only app.js loaded from the same origin.
-    blob: in media-src is required for createObjectURL (local video files).
-  -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self';
-                 script-src 'self';
-                 style-src 'self' https://fonts.googleapis.com;
-                 font-src https://fonts.gstatic.com;
-                 img-src 'self' blob: data:;
-                 media-src 'self' blob:;
-                 connect-src https://vitals.vercel-insights.com https://va.vercel-analytics.com;
-                 object-src 'none';
-                 frame-ancestors 'none';" />
+  <!-- CSP is enforced via HTTP response headers in vercel.json / nginx.conf -->
+  <!-- No meta CSP tag needed — using HTTP headers is stronger enforcement anyway -->
 
-  <!-- Vercel Web Analytics Script -->
-  <script defer src="analytics.min.js"></script>
+  <!-- Vercel Web Analytics (vanilla HTML approach) -->
+  <script defer src="/_vercel/insights/script.js"></script>
 
   <!-- Fonts (SRI not applicable to Google Fonts CSS — it's dynamic; served over HTTPS) -->
   <!-- TODO(security): Consider self-hosting fonts to eliminate third-party dependency -->
