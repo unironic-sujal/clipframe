@@ -37,12 +37,12 @@ jobs:
           fi
           echo "No innerHTML usage found. Good."
 
-          # Check CSP meta tag present
-          if ! grep -q "Content-Security-Policy" index.html; then
-            echo "WARNING: CSP meta tag not found in index.html"
+          # Check CSP is enforced via HTTP headers (vercel.json or nginx.conf)
+          if ! grep -q "Content-Security-Policy" vercel.json && ! grep -q "Content-Security-Policy" nginx.conf; then
+            echo "WARNING: CSP not found in vercel.json or nginx.conf"
             exit 1
           fi
-          echo "CSP meta tag present. Good."
+          echo "CSP enforced via HTTP headers. Good."
 
           # Check no hardcoded secrets pattern
           if grep -rE "(password|secret|api_key)\s*=\s*['\"][^'\"]{4,}" app.js 2>/dev/null; then
