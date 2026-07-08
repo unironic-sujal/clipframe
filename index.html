@@ -17,7 +17,8 @@
   <!-- No meta CSP tag needed — using HTTP headers is stronger enforcement anyway -->
 
   <!-- Vercel Web Analytics (vanilla HTML approach) -->
-  <script defer src="/_vercel/insights/script.js"></script>
+  <script>window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };</script>
+  <script defer src="/_vercel/insights/script.js" data-sdkn="@vercel/analytics" data-sdkv="2.0.1"></script>
 
   <!-- Fonts (SRI not applicable to Google Fonts CSS — it's dynamic; served over HTTPS) -->
   <!-- TODO(security): Consider self-hosting fonts to eliminate third-party dependency -->
